@@ -3,25 +3,34 @@ import sys
 
 class MessageProc:
 
-    def _init_(self):
-        self.pid=""
-        self.pipe_name = ""
+    #def _init_(self):
+
 
     def main(self):
         self.pid=os.getpid()
-        self.pipe_name = "/tmp/%s.fifo" (str(self.pid))
+        pidConv=str(self.pid)
+        self.pipe_name = "/tmp/%s.fifo" % (pidConv)
         if not os.path.exists(self.pipe_name):
         	os.mkfifo(self.pipe_name)
 
+    def start(self):
+        os.fork()
+        return os.getpid()
+
+
     def give(self, pid, message):
-        pipe_name = "/tmp/%d.fifo" (str(pid))
+        pidConv = str(pid)
+        pipe_name = "/tmp/%s.fifo" % (pidConv)
+        if not os.path.exists(self.pipe_name):
+        	os.mkfifo(self.pipe_name)
         fifo = open(pipe_name, "w")
         fifo.write(message)
         fifo.close()
 
     def recieve(self):
-        pid = os.getPID
-        pipe_name = "/tmp/my_program.fifo"
+        pid = os.getpid()
+        pidConv = str(pid)
+        pipe_name = "/tmp/%s.fifo" % (pidConv)
         fifo = open(pipe_name, 'r')
         for line in fifo:
             print(line)
@@ -31,4 +40,4 @@ class Message:
 
     def _init_(self, idIn, actionIn):
         self.name = idIn
-        self.action = actionin
+        self.action = actionIn
