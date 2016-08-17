@@ -29,5 +29,6 @@ if __name__=='__main__':
     me = MessageProc()
     me.main()
     example = Any().start()
+    print("howdy")
     print(example)
     me.give(example, 'hi')
