@@ -28,5 +28,6 @@ class Any(MessageProc):
 if __name__=='__main__':
     me = MessageProc()
     me.main()
-    example = Any().start()
-    me.give(example, 'hi')
+    example = Any()#.start()
+    print(example)
+    #me.give(example, 'hi')
