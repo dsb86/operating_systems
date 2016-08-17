@@ -14,8 +14,9 @@ class MessageProc:
         	os.mkfifo(self.pipe_name)
 
     def start(self):
+
         os.fork()
-        return os.getpid()
+
 
 
     def give(self, pid, message):
@@ -27,7 +28,7 @@ class MessageProc:
         fifo.write(message)
         fifo.close()
 
-    def recieve(self):
+    def recieve(self, *messages):
         pid = os.getpid()
         pidConv = str(pid)
         pipe_name = "/tmp/%s.fifo" % (pidConv)
