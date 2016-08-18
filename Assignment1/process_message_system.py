@@ -1,11 +1,13 @@
 import os
 import sys
+import pickle
 
 
 class MessageProc:
 
     def __init__(self):
-        print("initialized")
+
+
         self.pid = os.getpid()
         pid_conv = str(self.pid)
         self.pipe_name = "/tmp/%s.fifo" % (pid_conv)
@@ -16,42 +18,56 @@ class MessageProc:
             os.mkfifo(self.pipe_name)
 
     def start(self):
-        print(os.getpid())
+        ANY=any
         pid = os.fork()
         if pid == 0:
-            return os.getpid()
+            self.main()
+            sys.exit()
+        else:
+            return pid
 
-    def give(self, pid, message):
+    def give(self, pid, identifier, *args):
         pid_conv = str(pid)
         pipe_name = "/tmp/%s.fifo" % (pid_conv)
         if not os.path.exists(pipe_name):
             os.mkfifo(pipe_name)
         fifo = open(pipe_name, "w")
-        fifo.write(message)
+        string = '%s\n' % identifier
+        fifo.write(identifier)
+        fifo.flush()
         fifo.close()
 
-    def recieve(self, *messages):
+    def receive(self, *messages):
         pid = os.getpid()
         pid_conv = str(pid)
-        pipe_name = "/tmp/%s.fifo" % (pid_conv)
-        fifo = open(pipe_name, 'r')
-        for line in fifo:
-            text = line.getName()
-            for mess in messages:
-                if mess.getName()==text:
-                    line.getAction()()
+        dicty={};
+        for mess in messages:
+            val = mess.getDict()
+            ident = mess.getIdent()
+            dicty[ident]=val
 
-        fifo.close()
+        pipe_name = "/tmp/%s.fifo" % (pid_conv)
+        if not os.path.exists(pipe_name):
+            os.mkfifo(pipe_name)
+        fifo = open(pipe_name, 'r')
+        while True:
+            for line in fifo:
+                print(line)
+                # try:
+                print(dicty[line]['action']())
+                # except KeyError:
+                #     return dicty[any]['action']()
 
 class Message:
 
-    def __init__(self, id_in, action_in):
-        self.name = id_in
-        self.action = action_in
-        print(id_in)
+    def __init__(self, identifier, **function):
+        ANY = any
+        self.ident = identifier
+        self.dicty = function
 
-    def getName(self):
-        return self.name
 
-    def getAction(self):
-        return self.action
+    def getDict(self):
+        return self.dicty
+
+    def getIdent(self):
+        return self.ident
