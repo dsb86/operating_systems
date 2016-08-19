@@ -34,4 +34,4 @@ if __name__=='__main__':
     me.give(ordered, 'two')
     me.give(ordered, 'four')
 
-    #me.give(ordered, 'go')
+    me.give(ordered, 'go')
