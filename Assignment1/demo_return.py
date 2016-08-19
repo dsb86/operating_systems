@@ -21,3 +21,4 @@ if __name__=='__main__': # really do need this
     example = Return().start()
     me.give(example, 'two')
     me.give(example, 'hi')
+    me.give(example, 'hi')

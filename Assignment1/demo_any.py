@@ -5,7 +5,7 @@ class Any(MessageProc):
 
     def main(self):
         super().main()
-        ANY=any
+        
         self.receive(
           Message(
                 'one',
@@ -30,4 +30,6 @@ if __name__=='__main__':
     me = MessageProc()
     me.main()
     example = Any().start()
-    me.give(example, 'five')
+    me.give(example, 'one')
+    me.give(example, 'four')
+    me.give(example, 'four')
