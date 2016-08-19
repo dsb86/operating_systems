@@ -19,6 +19,4 @@ if __name__=='__main__': # really do need this
     me = MessageProc()
     me.main()
     example = Return().start()
-    me.give(example, 'two')
-    me.give(example, 'hi')
     me.give(example, 'hi')
