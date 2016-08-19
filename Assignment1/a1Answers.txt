@@ -1,0 +1,11 @@
+﻿Daniel Brotman
+dbro761
+19 August 2016
+COMPSCI 340
+Assignment 1
+
+1. A lock can be used to prevent concurrent writes to a shared pipe, while one sender holds access rights to a pipe it can be assured that no other sender will interlieve its messages.
+
+2. There buffer handles race conditions with its guard, so there is no danger of invalid operations due to concurrent threads.
+
+3. Using process ids to name pipes means that it is very easy to spoof reading and writing to the pipes. This is exacerbated by the fact that pids are generated somewhat concurrently, as opposed to random assignments with something like ports in TCP. 
