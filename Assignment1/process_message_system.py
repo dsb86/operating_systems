@@ -7,6 +7,7 @@ import pickle
 import time
 import threading
 import queue
+import sys
 
 ANY = any
 
@@ -40,6 +41,7 @@ class MessageProc:
         if pid == 0:
             # run main in child process
             self.main()
+            sys.exit()
         else:
             # register child with parent
             return pid
@@ -47,7 +49,7 @@ class MessageProc:
     def give(self, pid, *args):
         # open desired pipe file for writing
         pipe_out = "/tmp/{}.pkl".format(pid)
-        pickle_file = open(pipe_out, 'wb', buffer=0)
+        pickle_file = open(pipe_out, 'wb', buffering = 0)
         # pickle data
         pickle.dump(args, pickle_file)
         # close pickle file
