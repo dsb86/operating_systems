@@ -13,6 +13,10 @@ class Volume:
     NUM_BLOCK_INDEX = 12
     INDEX_FNAME = 2
     INDEX_BLOCKS = 16
+    OPEN_ENTRY = "f:        "
+    HEAD_DIRECTORY = "d:"
+    HEAD_FILE = "f:"
+    ROOT = 0
 
 
     def __init__(self, vdrive):
@@ -21,6 +25,7 @@ class Volume:
         self.mydrive = drive.Drive(vdrive)
         self.heap = []
 
+    # NOTE: Works
     def format(self):
 
         self.mydrive.format()
@@ -36,13 +41,14 @@ class Volume:
         for c in range (Volume.NUM_ROOTFILES):
             block = "{}{}".format(block, data)
 
-        self.mydrive.write_block(0, block)
+        self.mydrive.write_block(Volume.ROOT, block)
         self.heap_sort(block)
 
+    # NOTE: Works
     def reconnect(self):
 
         self.mydrive.reconnect()
-        block = self.mydrive.read_block(0)
+        block = self.mydrive.read_block(Volume.ROOT)
         self.heap_sort(block)
 
 
@@ -54,31 +60,36 @@ class Volume:
         heapq.heapify(self.heap)
 
     def mkfile(self, path):
-        eop = False
+        directory_address = self.find_base_directory_address(path, Volume.ROOT)
+        file_name = self.parse_name(path)
+        block_to_modify = None
+        index_to_modify = None
 
-        indi = []
-        for c in range (len(path)):
-            if(path[c] == '/'):
-                indi.append(c)
+        if(directory_address != Volume.ROOT):
+            directory_name = self.parse_name(path[:-len(file_name)])
+            directory_name = "{}{}".format(Volume.HEAD_DIRECTORY, directory_name)
 
-        for c in range (len(indi)-1):
-            block = self.mydrive.read_block(c)
-            label = path[indi[c]:indi[c+1]]
-            index = 0;
-            for d in range (Volume.NUM_FILES):
-                beggining = Volume.INDEX_FNAME + (Volume.SIZE_ENTRY * d)
-                end = beggining + len(label)
-                if(block[beggining:end]==label):
-                    index = d
-                    break
+            full_address = self.find_entry_in_directory(Volume.OPEN_ENTRY, directory_name, directory_address)
+            #TODO: Expand directory if no space found
+            block_to_modify = full_address[0]
+            index_to_modify = full_address[1]
+        else:
+            block_to_modify = Volume.ROOT
+            index_to_modify = self.find_entry_index(Volume.OPEN_ENTRY, Volume.ROOT)
 
-            #TODO: Set Loop to be helper function go through
-            # blocks
+        # NOTE: Works
+        original_block = self.mydrive.read_block(block_to_modify)
+        file_name= "{}{}".format(Volume.HEAD_FILE, file_name)
+        insertion_index = index_to_modify * Volume.SIZE_ENTRY
+        file_name_length = len(file_name) + insertion_index
+        new_block = "{}{}{}".format(original_block[:insertion_index], file_name, original_block[file_name_length:])
+        self.mydrive.write_block(block_to_modify, new_block)
 
+    # NOTE: Works
     def find_entry_index(self, name, block_address):
         block_data = self.mydrive.read_block(block_address)
         for index in range(Volume.NUM_FILES):
-            beggining = Volume.INDEX_FNAME + (Volume.SIZE_ENTRY * index)
+            beggining = Volume.SIZE_ENTRY * index
             end = beggining + len(name)
             if (block_data[beggining:end] == name):
                 return index
@@ -92,19 +103,23 @@ class Volume:
         name = ""
         entry_index = None
         end = 0
-
-        for c in range(1, Volume.SIZE_FNAME):
+        boundary = Volume.SIZE_FNAME
+        if boundary > len(path):
+            boundary = len(path)
+        for c in range(1, boundary):
             if path[c] == '/':
                 end = c
                 break
 
-            if c == Volume.SIZE_NAME-1:
+            if c == boundary-1:
                 end=-1
 
         if end == -1:
             return block_address
+            # NOTE: Works Up To Here For Sure
         else:
             name = path[1:end]
+            name = "{}{}".format(Volume.HEAD_DIRECTORY, name)
             entry_index = self.find_entry_index(name, block_address)
 
         if entry_index == -1:
@@ -130,6 +145,27 @@ class Volume:
                 used_blocks.append(block_num)
 
         return used_blocks
+
+    # NOTE: Works
+    def parse_name(self, path):
+        for c in range(len(path)-1, -1, -1):
+            if(path[c]=='/'):
+                name = path[c+1:]
+                return name
+
+    def find_entry_in_directory(self, entry, directory_name, directory_address):
+        directory_index = self.find_entry_index(directory_name, directory_address)
+        used_blocks = self.find_used_blocks(directory_address, directory_index)
+        for block in used_blocks:
+            entry_index = self.find_entry_index(entry, block)
+            if(entry_index != -1):
+                full_address =[block, entry_index]
+                return full_address
+
+        return -1
+
+    #TODO: Write mkdir to test full functionality of mkfile
+
 
 
 
