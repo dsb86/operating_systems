@@ -4,6 +4,7 @@ class DirectoryEntry:
     SIZE_NAME = 9
     SIZE_FSIZE = 4
     SIZE_NUMBLOCKS = 12
+    NUM_ENTRY = 8
     def __init__(self, type, name):
         self.data = "{:s}:{:s}".format(type,name);
         for c in range (DirectoryEntry.SIZE_NAME-len(name)):
@@ -16,5 +17,12 @@ class DirectoryEntry:
 
     def getEntry(self):
         return self.data
+
+    def getDirectory(self):
+        empty_block = ""
+        for c in range (DirectoryEntry.NUM_ENTRY):
+            empty_block = "{}{}".format(empty_block, self.data)
+
+        return empty_block
 
 

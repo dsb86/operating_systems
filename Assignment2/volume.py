@@ -8,11 +8,14 @@ class Volume:
     SIZE_ENTRY = 64
     SIZE_FNAME = 8
     SIZE_BLOCK_INDEX = 4
+    SIZE_BLOCK_SIZE = 4
+    SIZE_BLOCK = 512
     NUM_ROOTFILES = 6
     NUM_FILES = 8
     NUM_BLOCK_INDEX = 12
     INDEX_FNAME = 2
     INDEX_BLOCKS = 16
+    INDEX_FSIZE = 11
     OPEN_ENTRY = "f:        "
     HEAD_DIRECTORY = "d:"
     HEAD_FILE = "f:"
@@ -85,6 +88,40 @@ class Volume:
         new_block = "{}{}{}".format(original_block[:insertion_index], file_name, original_block[file_name_length:])
         self.mydrive.write_block(block_to_modify, new_block)
 
+    def mkdir(self, path):
+        directory_address = self.find_base_directory_address(path, Volume.ROOT)
+        file_name = self.parse_name(path)
+        block_to_modify = None
+        index_to_modify = None
+
+        if(directory_address != Volume.ROOT):
+            directory_name = self.parse_name(path[:-len(file_name)])
+            directory_name = "{}{}".format(Volume.HEAD_DIRECTORY, directory_name)
+
+            full_address = self.find_entry_in_directory(Volume.OPEN_ENTRY, directory_name, directory_address)
+            #TODO: Expand directory if no space found
+            block_to_modify = full_address[0]
+            index_to_modify = full_address[1]
+        else:
+            block_to_modify = Volume.ROOT
+            index_to_modify = self.find_entry_index(Volume.OPEN_ENTRY, Volume.ROOT)
+
+        # NOTE: Works
+        original_block = self.mydrive.read_block(block_to_modify)
+        file_name= "{}{}".format(Volume.HEAD_DIRECTORY, file_name)
+        insertion_index = index_to_modify * Volume.SIZE_ENTRY
+        file_name_length = len(file_name) + insertion_index
+        new_block = "{}{}{}".format(original_block[:insertion_index], file_name, original_block[file_name_length:])
+        self.mydrive.write_block(block_to_modify, new_block)
+        empty_entry = directoryEntry.DirectoryEntry('f', '')
+        empty_directory = empty_entry.getDirectory()
+        lowest_free_block = self.allocate_block()
+        self.mydrive.write_block(lowest_free_block, empty_directory)
+        self.add_block(block_to_modify, index_to_modify, lowest_free_block)
+        self.update_size(block_to_modify, index_to_modify, Volume.SIZE_BLOCK)
+
+
+
     # NOTE: Works
     def find_entry_index(self, name, block_address):
         block_data = self.mydrive.read_block(block_address)
@@ -134,15 +171,20 @@ class Volume:
         return -1
 
     def find_used_blocks(self, block_address, entry_index):
+        print(entry_index)
         block_data = self.mydrive.read_block(block_address)
-        block_index_beginning = entry_index * Volume.SIZE_BLOCK + Volume.INDEX_BLOCKS
+        block_index_beginning = entry_index * Volume.SIZE_ENTRY + Volume.INDEX_BLOCKS
+        print(block_index_beginning)
         block_index_end = block_index_beginning + Volume.SIZE_BLOCK_INDEX
+        print(block_index_end)
         used_blocks=[]
         for c in range(Volume.NUM_BLOCK_INDEX):
             block_index = block_data[block_index_beginning:block_index_end]
             block_num = int(block_index)
             if(block_num != 0):
                 used_blocks.append(block_num)
+            else:
+                return used_blocks
 
         return used_blocks
 
@@ -164,6 +206,42 @@ class Volume:
 
         return -1
 
+    #TODO: Break on drive full
+    def allocate_block(self):
+        lowest_free_block = self.heap.pop()
+        root_block = self.mydrive.read_block(Volume.ROOT)
+        root_block = "{}{}{}".format(root_block[:lowest_free_block], '+', root_block[lowest_free_block+1:])
+        self.mydrive.write_block(Volume.ROOT, root_block)
+        return lowest_free_block
+
+    def update_size(self, block_address, index, size):
+        block_data = self.mydrive.read_block(block_address)
+        size_entry = "{}".format(size)
+        diff = Volume.SIZE_BLOCK_SIZE-len(size_entry)
+        for c in range (diff):
+            size_entry = "{}{}".format('0', size_entry)
+
+        start_index = index*Volume.SIZE_ENTRY+Volume.INDEX_FSIZE
+        end_index = start_index + Volume.SIZE_BLOCK_SIZE
+        block_data = "{}{}{}".format(block_data[:start_index], size_entry, block_data[end_index:])
+        self.mydrive.write_block(block_address, block_data)
+
+    def add_block(self,address, index, block_to_add):
+        block_data = self.mydrive.read_block(address)
+        block_entry = "{}".format(block_to_add)
+        diff = Volume.SIZE_BLOCK_INDEX - len(block_entry) -1
+        for c in range(diff):
+            block_entry = "{}{}".format('0', block_entry)
+
+            block_entry = "{}{}".format(block_entry, ' ')
+
+        used_blocks = self.find_used_blocks(address, index)
+        block_num =len(used_blocks)
+        start_index = index * Volume.SIZE_ENTRY + Volume.INDEX_BLOCKS + block_num * Volume.SIZE_BLOCK_INDEX
+        end_index = start_index + Volume.SIZE_BLOCK_INDEX
+        block_data = "{}{}{}".format(block_data[:start_index], block_entry, block_data[end_index:])
+        print(block_data)
+        self.mydrive.write_block(address, block_data)
     #TODO: Write mkdir to test full functionality of mkfile
 
 
