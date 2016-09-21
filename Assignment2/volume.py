@@ -58,9 +58,9 @@ class Volume:
     def heap_sort(self, block):
         for c in range (Volume.SIZE_BITMAP):
             if block[c] == '-':
-                self.heap.append(c)
+                heapq.heappush(self.heap, c)
 
-        heapq.heapify(self.heap)
+
 
     def mkfile(self, path):
         directory_address = self.find_base_directory_address(path, Volume.ROOT)
@@ -68,8 +68,9 @@ class Volume:
         block_to_modify = None
         index_to_modify = None
 
-        if(directory_address != Volume.ROOT):
-            directory_name = self.parse_name(path[:-len(file_name)])
+        directory_name = self.parse_name(path[:-(len(file_name)+1)])
+
+        if (directory_name != None and len(directory_name) != Volume.ROOT):
             directory_name = "{}{}".format(Volume.HEAD_DIRECTORY, directory_name)
 
             full_address = self.find_entry_in_directory(Volume.OPEN_ENTRY, directory_name, directory_address)
@@ -94,8 +95,8 @@ class Volume:
         block_to_modify = None
         index_to_modify = None
 
-        if(directory_address != Volume.ROOT):
-            directory_name = self.parse_name(path[:-len(file_name)])
+        directory_name = self.parse_name(path[:-(len(file_name) + 1)])
+        if (directory_name != None and len(directory_name) != Volume.ROOT):
             directory_name = "{}{}".format(Volume.HEAD_DIRECTORY, directory_name)
 
             full_address = self.find_entry_in_directory(Volume.OPEN_ENTRY, directory_name, directory_address)
@@ -135,48 +136,79 @@ class Volume:
 
 
 
-
+    # find the block that contains the directory entry to be modified
     def find_base_directory_address(self, path, block_address):
         name = ""
         entry_index = None
         end = 0
+
+        #boundary is the maximum file name size or path length whichever greater
         boundary = Volume.SIZE_FNAME
         if boundary > len(path):
             boundary = len(path)
+
+        #start from the "root" until boundary look for subdirectory
         for c in range(1, boundary):
+            #if there is a subdirectory return the index for the name
             if path[c] == '/':
                 end = c
                 break
 
+            #otherwise indicate that we are at the lowest level
             if c == boundary-1:
                 end=-1
 
+        #if we are at lowest level return arg block_address
         if end == -1:
             return block_address
             # NOTE: Works Up To Here For Sure
         else:
+            # otherwise indicate the name of the subdirectory
             name = path[1:end]
             name = "{}{}".format(Volume.HEAD_DIRECTORY, name)
+            # find its index within the current block
             entry_index = self.find_entry_index(name, block_address)
 
+        # if it is not in current block return file not found
         if entry_index == -1:
             return -1
         else:
-            used_blocks = self.find_used_blocks(block_address, entry_index)
-            for block in used_blocks:
-                target = self.find_base_directory(path[end:], block)
-                if(target != -1):
-                    return target
+            # otherwise see if there is a deeper directory
+            end2 = 0
+            # new boundary is maximum file name + end or path
+            boundary = Volume.SIZE_FNAME + end
+            if boundary > len(path):
+                boundary = len(path)
+            #start past / go to boundary
+            for c in range(end+1, boundary):
+                if path[c] == '/':
+                    end2 = c
+                    break
 
+                if c == boundary - 1:
+                    end2 = -1
+
+            #if there is no deeper directory return arg
+            if(end2==-1):
+                return block_address
+            else:
+
+                # if there is deeper directory find out what block it is in and recurs
+                used_blocks = self.find_used_blocks(block_address, entry_index)
+                for block in used_blocks:
+                    target = self.find_base_directory_address(path[end2:], block)
+                    if(target != -1):
+                        return target
+        # target not found
         return -1
 
     def find_used_blocks(self, block_address, entry_index):
-        print(entry_index)
+
         block_data = self.mydrive.read_block(block_address)
         block_index_beginning = entry_index * Volume.SIZE_ENTRY + Volume.INDEX_BLOCKS
-        print(block_index_beginning)
+
         block_index_end = block_index_beginning + Volume.SIZE_BLOCK_INDEX
-        print(block_index_end)
+
         used_blocks=[]
         for c in range(Volume.NUM_BLOCK_INDEX):
             block_index = block_data[block_index_beginning:block_index_end]
@@ -208,7 +240,7 @@ class Volume:
 
     #TODO: Break on drive full
     def allocate_block(self):
-        lowest_free_block = self.heap.pop()
+        lowest_free_block = heapq.heappop(self.heap)
         root_block = self.mydrive.read_block(Volume.ROOT)
         root_block = "{}{}{}".format(root_block[:lowest_free_block], '+', root_block[lowest_free_block+1:])
         self.mydrive.write_block(Volume.ROOT, root_block)
@@ -233,14 +265,14 @@ class Volume:
         for c in range(diff):
             block_entry = "{}{}".format('0', block_entry)
 
-            block_entry = "{}{}".format(block_entry, ' ')
+        block_entry = "{}{}".format(block_entry, ' ')
 
         used_blocks = self.find_used_blocks(address, index)
         block_num =len(used_blocks)
         start_index = index * Volume.SIZE_ENTRY + Volume.INDEX_BLOCKS + block_num * Volume.SIZE_BLOCK_INDEX
         end_index = start_index + Volume.SIZE_BLOCK_INDEX
         block_data = "{}{}{}".format(block_data[:start_index], block_entry, block_data[end_index:])
-        print(block_data)
+
         self.mydrive.write_block(address, block_data)
     #TODO: Write mkdir to test full functionality of mkfile
 
