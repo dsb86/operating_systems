@@ -74,9 +74,21 @@ class Volume:
             directory_name = "{}{}".format(Volume.HEAD_DIRECTORY, directory_name)
 
             full_address = self.find_entry_in_directory(Volume.OPEN_ENTRY, directory_name, directory_address)
-            #TODO: Expand directory if no space found
-            block_to_modify = full_address[0]
-            index_to_modify = full_address[1]
+            if(full_address!=-1):
+                block_to_modify = full_address[0]
+                index_to_modify = full_address[1]
+            else:
+                directory_index = self.find_entry_index(directory_name, directory_address)
+                empty_entry = directoryEntry.DirectoryEntry('f', '')
+                empty_directory = empty_entry.getDirectory()
+
+                lowest_free_block = self.allocate_block()
+                self.mydrive.write_block(lowest_free_block, empty_directory)
+                self.add_block(directory_address, directory_index, lowest_free_block)
+                size = self.get_size(directory_address, directory_index) + Volume.SIZE_BLOCK
+                self.update_size(directory_address, directory_index, size)
+                block_to_modify = lowest_free_block
+                index_to_modify = 0
         else:
             block_to_modify = Volume.ROOT
             index_to_modify = self.find_entry_index(Volume.OPEN_ENTRY, Volume.ROOT)
@@ -101,8 +113,22 @@ class Volume:
 
             full_address = self.find_entry_in_directory(Volume.OPEN_ENTRY, directory_name, directory_address)
             #TODO: Expand directory if no space found
-            block_to_modify = full_address[0]
-            index_to_modify = full_address[1]
+            if(full_address!=-1):
+                block_to_modify = full_address[0]
+                index_to_modify = full_address[1]
+            else:
+                directory_index = self.find_entry_index(directory_name, directory_address)
+                empty_entry = directoryEntry.DirectoryEntry('f', '')
+                empty_directory = empty_entry.getDirectory()
+
+                lowest_free_block = self.allocate_block()
+                self.mydrive.write_block(lowest_free_block, empty_directory)
+                self.add_block(directory_address, directory_index, lowest_free_block)
+                size = self.get_size(directory_address, directory_index) + Volume.SIZE_BLOCK
+                self.update_size(directory_address, directory_index, size)
+
+                block_to_modify = lowest_free_block
+                index_to_modify = 0
         else:
             block_to_modify = Volume.ROOT
             index_to_modify = self.find_entry_index(Volume.OPEN_ENTRY, Volume.ROOT)
@@ -207,14 +233,17 @@ class Volume:
         block_data = self.mydrive.read_block(block_address)
         block_index_beginning = entry_index * Volume.SIZE_ENTRY + Volume.INDEX_BLOCKS
 
-        block_index_end = block_index_beginning + Volume.SIZE_BLOCK_INDEX
+        block_index_end = block_index_beginning + Volume.SIZE_BLOCK_INDEX-1
 
         used_blocks=[]
         for c in range(Volume.NUM_BLOCK_INDEX):
             block_index = block_data[block_index_beginning:block_index_end]
             block_num = int(block_index)
+
             if(block_num != 0):
                 used_blocks.append(block_num)
+                block_index_beginning += Volume.SIZE_BLOCK_INDEX
+                block_index_end += Volume.SIZE_BLOCK_INDEX
             else:
                 return used_blocks
 
@@ -275,6 +304,13 @@ class Volume:
 
         self.mydrive.write_block(address, block_data)
     #TODO: Write mkdir to test full functionality of mkfile
+
+    def get_size(self, address, index):
+        block = self.mydrive.read_block(address)
+        start = index*Volume.SIZE_ENTRY + Volume.INDEX_FSIZE
+        end = start + Volume.SIZE_BLOCK_SIZE
+        size = int(block[start:end])
+        return size
 
 
 
