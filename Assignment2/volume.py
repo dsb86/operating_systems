@@ -273,6 +273,59 @@ class Volume:
 
         print(data)
 
+    def delfile(self, path):
+        # find the entry address of the deepest directory
+        directory_address = self.find_base_directory_address(path, Volume.ROOT)
+        # parse the name of the file to be modified
+        file_name = self.parse_name(path)
+        file_name = "{}{}".format(Volume.HEAD_FILE, file_name)
+        block_to_modify = None
+        index_to_modify = None
+        # parse the name of the directory that the file is being written to
+        directory_name = self.parse_name(path[:-(len(file_name)+1)])
+        # if the name is not blank or None we are not making an entry in ROOT
+        if (directory_name != None and len(directory_name) != Volume.ROOT):
+            # format directory name to include d: header
+            directory_name = "{}{}".format(Volume.HEAD_DIRECTORY, directory_name)
+
+            # get the block and index of the file header
+            full_address = self.find_entry_in_directory(file_name, directory_name, directory_address)
+            block = full_address[0]
+            index = full_address[1]
+        else:
+            # otherwise we are in root
+            block = Volume.ROOT
+            index = self.find_entry_index(file_name, Volume.ROOT)
+
+        blocks = self.find_used_blocks(block, index)
+
+
+        for item in blocks:
+            self.deallocate_block(item)
+
+        blank_entry = directoryEntry.DirectoryEntry('f', ' ').getEntry()
+        block_data = self.mydrive.read_block(block)
+        start = index * Volume.SIZE_ENTRY
+        end = start + Volume.SIZE_ENTRY
+        block_data = "{}{}{}".format(block_data[:start], blank_entry, block_data[end:])
+        self.mydrive.write_block(block, block_data)
+
+        if(block != Volume.ROOT):
+            count = self.get_num_entries(block)
+            directory_index = self.find_entry_index(directory_name, directory_address)
+            num_blocks = len(self.find_used_blocks(directory_address, directory_index))
+
+            if(count == 0 and num_blocks > 1):
+                self.deallocate_block(block)
+
+                self.remove_block(directory_address, directory_index, block)
+                curr_size = self.get_size(directory_address, directory_index)
+                curr_size = curr_size - Volume.SIZE_BLOCK
+                self.update_size(directory_address, directory_index, curr_size)
+
+    def deldir(self, path):
+        self.delfile(path)
+
 
     # NOTE: Works
     def find_entry_index(self, name, block_address):
@@ -401,6 +454,14 @@ class Volume:
         self.mydrive.write_block(Volume.ROOT, root_block)
         return lowest_free_block
 
+    def deallocate_block(self,block):
+        blank = " " * Volume.SIZE_BLOCK
+        self.mydrive.write_block(block, blank)
+        root_block = self.mydrive.read_block(Volume.ROOT)
+        root_block = "{}{}{}".format(root_block[:block], '-', root_block[block + 1:])
+        self.mydrive.write_block(Volume.ROOT, root_block)
+        heapq.heappush(self.heap, block)
+
     def update_size(self, block_address, index, size):
         block_data = self.mydrive.read_block(block_address)
         size_entry = "{}".format(size)
@@ -429,7 +490,19 @@ class Volume:
         block_data = "{}{}{}".format(block_data[:start_index], block_entry, block_data[end_index:])
 
         self.mydrive.write_block(address, block_data)
-    #TODO: Write mkdir to test full functionality of mkfile
+
+    def remove_block(self, address, index, block_to_remove):
+        block_data = self.mydrive.read_block(address)
+        used_blocks = self.find_used_blocks(address, index)
+        start = index * Volume.SIZE_ENTRY + Volume.INDEX_BLOCKS
+        end = start + Volume.SIZE_BLOCK_INDEX * Volume.NUM_BLOCK_INDEX
+        block_data = "{}{}{}".format(block_data[:start], '000 ' * Volume.NUM_BLOCK_INDEX, block_data[end:])
+        self.mydrive.write_block(address, block_data)
+
+        for item in used_blocks:
+            if (item != block_to_remove):
+                self.add_block(address, index, item)
+
 
     def get_size(self, address, index):
         block = self.mydrive.read_block(address)
@@ -437,6 +510,22 @@ class Volume:
         end = start + Volume.SIZE_BLOCK_SIZE
         size = int(block[start:end])
         return size
+
+    def get_num_entries(self, block):
+        blank_entry = directoryEntry.DirectoryEntry('f', ' ').getEntry()
+        block_data = self.mydrive.read_block(block)
+        count = 0
+        for c in range(Volume.NUM_FILES):
+            start = c * Volume.SIZE_ENTRY
+            end = start + Volume.SIZE_ENTRY
+            actual_entry = block_data[start:end]
+            if(actual_entry!=blank_entry):
+                count+=1
+
+        return count
+
+
+
 
 
 
