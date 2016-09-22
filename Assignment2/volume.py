@@ -185,68 +185,94 @@ class Volume:
         if (directory_name != None and len(directory_name) != Volume.ROOT):
             # format directory name to include d: header
             directory_name = "{}{}".format(Volume.HEAD_DIRECTORY, directory_name)
-            # get the block and index of the lowest open entry slot
+
+            # get the block and index of the file header
             full_address = self.find_entry_in_directory(file_name, directory_name, directory_address)
             block = full_address[0]
             index = full_address[1]
-            curr_size  = self.get_size(block, index)
-
-            # if an actual address is returned parse block and index
-            remaining_space = Volume.SIZE_BLOCK - (curr_size % Volume.SIZE_BLOCK)
-            blocks = self.find_used_blocks(block, index)
-            used_block_num = len(blocks)
-            if (used_block_num > 0 and (remaining_space != 0 or curr_size == 0)):
-
-                block_to_modify = blocks[-1]
-                block_data = self.mydrive.read_block(block_to_modify)
-                block_data = "{}{}".format(block_data[:curr_size], data[:remaining_space])
-                curr_size += len(data[:remaining_space])
-                additional_spaces = Volume.SIZE_BLOCK - (curr_size % Volume.SIZE_BLOCK)
-                block_data = "{}{}".format(block_data, ' '* additional_spaces)
-                print(block_data)
-                self.mydrive.write_block(block_to_modify, block_data)
-                self.update_size(block, index, curr_size)
-                if(len(data)>remaining_space):
-                    self.append(path, data[remaining_space:])
-            else:
-
-                # find the lowest free block
-                lowest_free_block = self.allocate_block()
-                self.add_block(block, index, lowest_free_block)
-                self.append(path, data)
-
         else:
-            # otherwise find free space in root
+            # otherwise we are in root
             block = Volume.ROOT
             index = self.find_entry_index(file_name, Volume.ROOT)
 
-            curr_size = self.get_size(block, index)
+        #find the current size of the file
+        curr_size  = self.get_size(block, index)
 
-            # if an actual address is returned parse block and index
-            remaining_space = Volume.SIZE_BLOCK-(curr_size % Volume.SIZE_BLOCK)
-            blocks = self.find_used_blocks(block, index)
-            used_block_num = len(blocks)
-            if (used_block_num > 0 and (remaining_space != 0 or curr_size == 0)):
+        # find the amount of space remaining in already allocated blocks
+        remaining_space = Volume.SIZE_BLOCK - (curr_size % Volume.SIZE_BLOCK)
+        print("{:s}{:d}".format("remainining space ", remaining_space))
+        # find how many blocks are used
+        blocks = self.find_used_blocks(block, index)
+        used_block_num = len(blocks)
+        # if blocks have been allocated and there is open space
 
-                block_to_modify = blocks[-1]
-                block_data = self.mydrive.read_block(block_to_modify)
-                block_data = "{}{}".format(block_data[:curr_size], data[:remaining_space])
-                curr_size += len(data[:remaining_space])
-                additional_spaces = Volume.SIZE_BLOCK - (curr_size % Volume.SIZE_BLOCK)
-                block_data = "{}{}".format(block_data, ' '* additional_spaces)
-                print(block_data)
-                self.mydrive.write_block(block_to_modify, block_data)
-                self.update_size(block, index, curr_size)
+        if (curr_size <used_block_num * Volume.SIZE_BLOCK):
+            #append to last block
+            block_to_modify = blocks[-1]
+            #find data currently in block
+            block_data = self.mydrive.read_block(block_to_modify)
+            # append maximum amount of new data to block
+            block_data = "{}{}".format(block_data[:curr_size % Volume.SIZE_BLOCK], data[:remaining_space])
+            # update current size
+            curr_size += len(data[:remaining_space])
+            # fill in rest of block with blank spaces
+            additional_spaces = Volume.SIZE_BLOCK - (curr_size % Volume.SIZE_BLOCK)
+            if(additional_spaces==Volume.SIZE_BLOCK):
+                additional_spaces = 0
 
-                print(len(data))
-                if (len(data) > remaining_space):
-                    self.append(path, data[remaining_space:])
-            else:
+            print("{:s}{:d}".format("len block data b4 ", len(block_data)))
 
-                # find the lowest free block
-                lowest_free_block = self.allocate_block()
-                self.add_block(block, index, lowest_free_block)
-                self.append(path, data)
+            block_data = "{}{}".format(block_data, ' ' * additional_spaces)
+            print("{:s}{:d}".format("len block data at ", len(block_data)))
+            # write block back and update size
+            print("{:s}{:d}".format("writing to block ", block_to_modify))
+            self.mydrive.write_block(block_to_modify, block_data)
+            self.update_size(block, index, curr_size)
+            # if there was more data than current space rerun append on remaining data
+            if(len(data)>remaining_space):
+                self.append(path, data[remaining_space:])
+        else:
+
+            # if we need more room find the lowest free block
+            lowest_free_block = self.allocate_block()
+            # add it to the file
+            self.add_block(block, index, lowest_free_block)
+            # rerun append
+            self.append(path, data)
+
+    def print(self, path):
+        # find the entry address of the deepest directory
+        directory_address = self.find_base_directory_address(path, Volume.ROOT)
+        # parse the name of the file to be modified
+        file_name = self.parse_name(path)
+        file_name = "{}{}".format(Volume.HEAD_FILE, file_name)
+        block_to_modify = None
+        index_to_modify = None
+        # parse the name of the directory that the file is being written to
+        directory_name = self.parse_name(path[:-(len(file_name)+1)])
+        # if the name is not blank or None we are not making an entry in ROOT
+        if (directory_name != None and len(directory_name) != Volume.ROOT):
+            # format directory name to include d: header
+            directory_name = "{}{}".format(Volume.HEAD_DIRECTORY, directory_name)
+
+            # get the block and index of the file header
+            full_address = self.find_entry_in_directory(file_name, directory_name, directory_address)
+            block = full_address[0]
+            index = full_address[1]
+        else:
+            # otherwise we are in root
+            block = Volume.ROOT
+            index = self.find_entry_index(file_name, Volume.ROOT)
+
+        blocks = self.find_used_blocks(block, index)
+
+        data = ""
+        for item in blocks:
+            bd = self.mydrive.read_block(item)
+            data = "{}{}".format(data, bd)
+
+        print(data)
+
 
     # NOTE: Works
     def find_entry_index(self, name, block_address):
