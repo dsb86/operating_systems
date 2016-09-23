@@ -20,6 +20,7 @@ class Volume:
     HEAD_DIRECTORY = "d:"
     HEAD_FILE = "f:"
     ROOT = 0
+    BLANK = " " * SIZE_FNAME
 
     # initialize volume
     def __init__(self, vdrive):
@@ -324,7 +325,112 @@ class Volume:
                 self.update_size(directory_address, directory_index, curr_size)
 
     def deldir(self, path):
-        self.delfile(path)
+        # find the entry address of the deepest directory
+        directory_address = self.find_base_directory_address(path, Volume.ROOT)
+        # parse the name of the file to be modified
+        file_name = self.parse_name(path)
+        file_name = "{}{}".format(Volume.HEAD_DIRECTORY, file_name)
+        block_to_modify = None
+        index_to_modify = None
+        # parse the name of the directory that the file is being written to
+        directory_name = self.parse_name(path[:-(len(file_name) + 1)])
+        # if the name is not blank or None we are not making an entry in ROOT
+        if (directory_name != None and len(directory_name) != Volume.ROOT):
+            # format directory name to include d: header
+            directory_name = "{}{}".format(Volume.HEAD_DIRECTORY, directory_name)
+
+            # get the block and index of the file header
+            full_address = self.find_entry_in_directory(file_name, directory_name, directory_address)
+            block = full_address[0]
+            index = full_address[1]
+        else:
+            # otherwise we are in root
+            block = Volume.ROOT
+            index = self.find_entry_index(file_name, Volume.ROOT)
+
+        blocks = self.find_used_blocks(block, index)
+
+        for item in blocks:
+            self.deallocate_block(item)
+
+        blank_entry = directoryEntry.DirectoryEntry('f', ' ').getEntry()
+        block_data = self.mydrive.read_block(block)
+        start = index * Volume.SIZE_ENTRY
+        end = start + Volume.SIZE_ENTRY
+        block_data = "{}{}{}".format(block_data[:start], blank_entry, block_data[end:])
+        self.mydrive.write_block(block, block_data)
+
+        if (block != Volume.ROOT):
+            count = self.get_num_entries(block)
+            directory_index = self.find_entry_index(directory_name, directory_address)
+            num_blocks = len(self.find_used_blocks(directory_address, directory_index))
+
+            if (count == 0 and num_blocks > 1):
+                self.deallocate_block(block)
+
+                self.remove_block(directory_address, directory_index, block)
+                curr_size = self.get_size(directory_address, directory_index)
+                curr_size = curr_size - Volume.SIZE_BLOCK
+                self.update_size(directory_address, directory_index, curr_size)
+
+    def ls(self,path):
+        line_one = "Name:           Type:           Size:           "
+        no_entry = "--------        --------        --------"
+        print(line_one)
+        # find the entry address of the deepest directory
+        directory_address = self.find_base_directory_address(path, Volume.ROOT)
+        # parse the name of the file to be modified
+        file_name = self.parse_name(path)
+        file_name = "{}{}".format(Volume.HEAD_DIRECTORY, file_name)
+        block_to_modify = None
+        index_to_modify = None
+        # parse the name of the directory that the file is being written to
+        directory_name = self.parse_name(path[:-(len(file_name) + 1)])
+        # if the name is not blank or None we are not making an entry in ROOT
+        num = self.get_num_entries(Volume.ROOT)
+        if(num == 0):
+            print(no_entry)
+            return
+
+        if(file_name == None or file_name == 'd:.' or file_name == 'd:'):
+            for c in range (2, Volume.NUM_FILES):
+                name = self.get_name(Volume.ROOT, c)
+                if(name != Volume.BLANK):
+                    type = "{}".format(self.get_type(Volume.ROOT, c))
+                    size = "{}".format(self.get_size(Volume.ROOT, c))
+                    print("{}{}{}{}".format(name, Volume.BLANK, type, size))
+
+            return
+
+
+
+        if (directory_name != None and len(directory_name) != Volume.ROOT):
+            # format directory name to include d: header
+            directory_name = "{}{}".format(Volume.HEAD_DIRECTORY, directory_name)
+
+            # get the block and index of the file header
+            full_address = self.find_entry_in_directory(file_name, directory_name, directory_address)
+            block = full_address[0]
+            index = full_address[1]
+        else:
+            # otherwise we are in root
+            block = Volume.ROOT
+            index = self.find_entry_index(file_name, Volume.ROOT)
+
+        blocks = self.find_used_blocks(block, index)
+        for item in blocks:
+            num = self.get_num_entries(item)
+            if(num == 0):
+                print(no_entry)
+                return
+            
+            for c in range(Volume.NUM_FILES):
+                name = self.get_name(item, c)
+                if (name != Volume.BLANK):
+                    type = "{}".format(self.get_type(item, c))
+                    size = "{}".format(self.get_size(item, c))
+                    print("{}{}{}{}".format(name, Volume.BLANK, type, size))
+
 
 
     # NOTE: Works
@@ -514,8 +620,12 @@ class Volume:
     def get_num_entries(self, block):
         blank_entry = directoryEntry.DirectoryEntry('f', ' ').getEntry()
         block_data = self.mydrive.read_block(block)
+        if(block == Volume.ROOT):
+            start = 2
+        else:
+            start = 0
         count = 0
-        for c in range(Volume.NUM_FILES):
+        for c in range(start, Volume.NUM_FILES):
             start = c * Volume.SIZE_ENTRY
             end = start + Volume.SIZE_ENTRY
             actual_entry = block_data[start:end]
@@ -524,6 +634,21 @@ class Volume:
 
         return count
 
+    def get_name(self, block, index):
+        block_data = self.mydrive.read_block(block)
+        start = Volume.SIZE_ENTRY * index + Volume.INDEX_FNAME
+        end = start + Volume.SIZE_FNAME
+        name = block_data[start:end]
+        return name
+
+
+    def get_type(self, block, index):
+        block_data = self.mydrive.read_block(block)
+        start = Volume.SIZE_ENTRY * index
+        type = block_data[start]
+        if(type == 'f'):
+            return 'File            '
+        return 'Directory       '
 
 
 
