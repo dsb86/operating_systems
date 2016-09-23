@@ -201,7 +201,7 @@ class Volume:
 
         # find the amount of space remaining in already allocated blocks
         remaining_space = Volume.SIZE_BLOCK - (curr_size % Volume.SIZE_BLOCK)
-        print("{:s}{:d}".format("remainining space ", remaining_space))
+
         # find how many blocks are used
         blocks = self.find_used_blocks(block, index)
         used_block_num = len(blocks)
@@ -221,12 +221,12 @@ class Volume:
             if(additional_spaces==Volume.SIZE_BLOCK):
                 additional_spaces = 0
 
-            print("{:s}{:d}".format("len block data b4 ", len(block_data)))
+
 
             block_data = "{}{}".format(block_data, ' ' * additional_spaces)
-            print("{:s}{:d}".format("len block data at ", len(block_data)))
+
             # write block back and update size
-            print("{:s}{:d}".format("writing to block ", block_to_modify))
+
             self.mydrive.write_block(block_to_modify, block_data)
             self.update_size(block, index, curr_size)
             # if there was more data than current space rerun append on remaining data
@@ -271,7 +271,9 @@ class Volume:
         for item in blocks:
             bd = self.mydrive.read_block(item)
             data = "{}{}".format(data, bd)
-
+        size = self.get_size(block, index)
+        extra_spaces = Volume.SIZE_BLOCK - (size%Volume.SIZE_BLOCK)
+        data= data[:-extra_spaces]
         print(data)
 
     def delfile(self, path):
@@ -376,6 +378,7 @@ class Volume:
     def ls(self,path):
         line_one = "Name:           Type:           Size:           "
         no_entry = "--------        --------        --------"
+
         print(line_one)
         # find the entry address of the deepest directory
         directory_address = self.find_base_directory_address(path, Volume.ROOT)
